@@ -58,6 +58,7 @@ static void UnifyByInsertingAllKnots(TColGeom_SequenceOfCurve& theCurves,
   }
 
   // essai : tentative mise des poids sur chaque section a une moyenne 1
+  //测试：尝试将每个部分的平均权重设为 1
   for ( i = 1; i <= theCurves.Length(); i++) {
     Handle(Geom_BSplineCurve) Ci = 
       Handle(Geom_BSplineCurve)::DownCast(theCurves(i));
@@ -190,6 +191,9 @@ void GeomFill_Profiler::Perform(const Standard_Real PTol)
     // si non periodique, il faut deperiodiser toutes les courbes
     // on les segmente ensuite pour assurer K(1) et K(n) de multiplicite
     // degre + 1
+    // 如果是非周期性的，则所有曲线都必须去周期化。
+    // 然后对它们进行分段，以确保 K(1) 和 K(n) 具有多重性。
+     // 度数 + 1。
 
     U2 = C->Knot(C->LastUKnotIndex());
     U1 = C->Knot(C->FirstUKnotIndex());
@@ -203,6 +207,7 @@ void GeomFill_Profiler::Perform(const Standard_Real PTol)
     myDegree = Max( myDegree, C->Degree());
     
     // Calcul de Max ( Ufin - Udeb) sur l ensemble des courbes.
+    // 计算所有曲线上的最大值（Ufin - Udeb）。
     if ( ( U2 - U1) > EcartMax) {
       EcartMax = U2 - U1;
       UFirst = U1;

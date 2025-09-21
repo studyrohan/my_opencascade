@@ -1532,6 +1532,11 @@ void GeomLib::ExtendSurfByLength(Handle(Geom_BoundedSurface)& Surface,
     //  le nombre de poles egal a NbUpoles ou NbVpoles
     //  ATTENTION : dans le cas rationnel, un point de coordonnees (x,y,z)
     //              et de poids w devient un point de coordonnees (wx, wy, wz, w )
+
+// 将曲面变换为单变量非有理 BSpline
+// 度数为 UDegree 或 VDegree，维数为 3 或 4 x NbVpoles 或 NbUpoles
+// 极点数等于 NbUpoles 或 NbVpoles
+// 注意：在有理情况下，坐标为 (x,y,z) 且权重为 w 的点将变为坐标为 (wx, wy, wz, w) 的点
   
 
     if (InU) {
@@ -1546,6 +1551,7 @@ void GeomLib::ExtendSurfByLength(Handle(Geom_BoundedSurface)& Surface,
     }
 
     //  les noeuds plats
+    // 平结
     Ksize = NbP + Cdeg + 1;
     FKnots = new (TColStd_HArray1OfReal) (1,Ksize);
     if (InU) 
@@ -1554,12 +1560,15 @@ void GeomLib::ExtendSurfByLength(Handle(Geom_BoundedSurface)& Surface,
       BS->VKnotSequence(FKnots->ChangeArray1());
 
     //  le parametre du noeud de raccord
+    // 连接节点参数
     if (After)
       Tbord = FKnots->Value(FKnots->Upper()-Cdeg);
     else
       Tbord = FKnots->Value(FKnots->Lower()+Cdeg);
 
     //  les poles
+
+    // 两极
     Psize = Cdim * NbP;
     Poles = new (TColStd_HArray1OfReal) (1,Psize);
 
@@ -1588,6 +1597,7 @@ void GeomLib::ExtendSurfByLength(Handle(Geom_BoundedSurface)& Surface,
     Padr = (Standard_Real *) &Poles->ChangeValue(1);
 
     //  calcul du point de raccord et de la tangente
+    // 计算连接点和切线
     Point = new (TColStd_HArray1OfReal)(1,Cdim);
     Tgte  = new (TColStd_HArray1OfReal)(1,Cdim);
     lambda = new (TColStd_HArray1OfReal)(1,Cdim);
