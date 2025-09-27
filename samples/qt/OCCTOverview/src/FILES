@@ -17,3 +17,7 @@ Transparency.cxx
 Transparency.h
 View.cxx
 View.h
+utils.cxx
+utils.h
+modeling.cxx
+modeling.h

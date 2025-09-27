@@ -717,8 +717,8 @@ void math_FunctionSetRoot::Perform(math_FunctionSetWithDerivatives& F,
   const Standard_Real EpsSqrt = 1.e-16, Eps = 1.e-32, Eps2 = 1.e-64, Progres = 0.005;
   Standard_Real F2, PreviousMinimum, Dy, OldF;
   Standard_Real Ambda, Ambda2, Gnr1, Oldgr;
-  math_Vector InvLengthMax(1, Ninc); // Pour bloquer les pas a 1/4 du domaine
-  math_IntegerVector aConstraints(1, Ninc); // Pour savoir sur quels bord on se trouve
+  math_Vector InvLengthMax(1, Ninc); // Pour bloquer les pas a 1/4 du domaine 在场地的四分之一区域处设置障碍以阻止行进
+  math_IntegerVector aConstraints(1, Ninc); // Pour savoir sur quels bord on se trouve 要知道我们处于何种境地要知道我们处于何种境地
   for (i = 1; i <= Ninc ; i++) {
     const Standard_Real aSupBound  = Min (theSupBound(i),  Precision::Infinite());
     const Standard_Real anInfBound = Max (theInfBound(i), -Precision::Infinite());
@@ -747,12 +747,15 @@ void math_FunctionSetRoot::Perform(math_FunctionSetWithDerivatives& F,
 
   // Verification de la validite des inconnues par rapport aux bornes.
   // Recentrage sur les bornes si pas valide.
+  //根据边界值验证未知变量的有效性。
+  //如果无效，则重新聚焦于边界值。
   for ( i = 1; i <= Ninc; i++) {
     if (Sol(i) <= theInfBound(i)) Sol(i) = theInfBound(i);
     else if (Sol(i) > theSupBound(i)) Sol(i) = theSupBound(i);
   }
 
   // Calcul de la premiere valeur de F et de son gradient
+  //计算 F 的初始值及其梯度
   if(!F_Dir.Value(Sol, FF, DF, GH, F2, Gnr1)) {
     Done = Standard_False;
     if (!theStopOnDivergent || !myIsDivergent)
@@ -765,6 +768,8 @@ void math_FunctionSetRoot::Perform(math_FunctionSetWithDerivatives& F,
   // Le rang 0 de Save ne doit servir q'au test accelarteur en fin de boucle
   // s'il on est dejas sur la solution, il faut leurer ce test pour eviter
   // de faire une seconde iteration...
+  //// “Save” 类中的第 0 个方法仅在循环结束时用于加速测试
+  // 如果我们已经处于解决方案状态，就应该取消这个测试，以免进行第二次迭代……
   Save(0) = Max (F2, EpsSqrt);
   Standard_Real aTol_Func = Epsilon(F2);
   FSR_DEBUG("=== Mode Debug de Function Set Root" << std::endl);
@@ -902,6 +907,8 @@ void math_FunctionSetRoot::Perform(math_FunctionSetWithDerivatives& F,
               if (DescenteIter == 0) { 
                 // C'est le premier pas qui flanche, on fait une interpolation.
                 // et on minimise si necessaire.
+                // 这是第一步出现了失误，于是我们进行插值处理。
+                // 如有必要，还会进行最小化操作。
                 DescenteIter++;
                 Good = MinimizeDirection(SolSave, Delta, OldF, F2, DHSave, GH,
                   Tol, F_Dir);
