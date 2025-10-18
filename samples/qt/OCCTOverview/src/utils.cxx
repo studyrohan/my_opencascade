@@ -236,7 +236,75 @@ void GetCurveInfoFromEdge(const TopoDS_Edge& theEdge) {
 	// ... 进一步根据曲线具体类型查询信息
 }
 
+// 简化版的Cox-de Boor递归计算示例（实际使用需考虑边界和效率）
+double BasisFunction(int i, int p, double u, const TColStd_Array1OfReal& knots) {
+	if (p == 0) {
+		if (knots(i) <= u && u < knots(i + 1)) return 1.0;
+		else return 0.0;
+	}
+	else {
+		double left = (knots(i + p) - knots(i)) != 0 ? (u - knots(i)) / (knots(i + p) - knots(i)) * BasisFunction(i, p - 1, u, knots) : 0;
+		double right = (knots(i + p + 1) - knots(i + 1)) != 0 ? (knots(i + p + 1) - u) / (knots(i + p + 1) - knots(i + 1)) * BasisFunction(i + 1, p - 1, u, knots) : 0;
+		return left + right;
+	}
+}
 
+/**
+ * 在节点向量中查找参数u所在的节点区间
+ * @param n 控制点数量-1（最大控制点索引）
+ * @param p 曲线次数（degree）
+ * @param u 要查找的参数值
+ * @param U 节点向量数组（长度为n+p+2）
+ * @param numKnots 节点向量总长度
+ * @return 参数u所在的节点区间下标
+ */
+//int FindSpan(int n, int p, double u, const double* U, int numKnots) {
+int FindSpan(int n, int p, double u, const TColStd_Array1OfReal & knots) {
+	// 特殊情况处理：如果u等于最后一个节点值，直接返回n
+	if (u == knots[n + 1]) {
+		return n;
+	}
+
+	// 二分查找初始化
+	int low = p;
+	int high = n + 1;
+	int mid = (low + high) / 2;
+
+	// 二分查找核心循环
+	while (u < knots[mid] || u >= knots[mid + 1]) {
+		if (u < knots[mid]) {
+			high = mid;      // 在左半部分继续查找
+		}
+		else {
+			low = mid;       // 在右半部分继续查找
+		}
+		mid = (low + high) / 2;
+	}
+
+	return mid;
+}
+
+// 然后遍历所有控制点进行加权求和
+gp_Pnt ComputePointOnCurve(double u, const TColgp_Array1OfPnt& poles, int degree, const TColStd_Array1OfReal& knots) {
+	int numPoles = poles.Length();
+	int order = degree + 1;
+	gp_Pnt result(0, 0, 0);
+	double totalWeight = 0.0;
+
+	// 找到u所在的节点区间
+	int span = FindSpan(numPoles-1, degree, u, knots); // 需要实现FindSpan函数
+
+	// 计算非零的基函数值
+	for (int i = 0; i <= degree; i++) {
+		int idx = span - degree + i;
+		double basisVal = BasisFunction(idx, degree, u, knots); // 计算基函数
+		gp_Pnt pole = poles(idx + 1); // 注意索引，假设poles索引从1开始
+		result.SetX(result.X() + basisVal * pole.X());
+		result.SetY(result.Y() + basisVal * pole.Y());
+		result.SetZ(result.Z() + basisVal * pole.Z());
+	}
+	return result;
+}
 
 void PrintGeomCurveInfo(const Handle(Geom_Curve)& theCurve, const Standard_Real theParamSample) {
 	if (theCurve.IsNull()) {
@@ -303,7 +371,68 @@ void PrintGeomCurveInfo(const Handle(Geom_Curve)& theCurve, const Standard_Real 
 		Handle(Geom_BSplineCurve) aBSpline = Handle(Geom_BSplineCurve)::DownCast(theCurve);
 		std::cout << "  - BSpline Degree: " << aBSpline->Degree() << std::endl;
 		std::cout << "  - Number of Poles: " << aBSpline->NbPoles() << std::endl;
+		TColgp_Array1OfPnt poles = aBSpline->Poles();
+		Standard_Integer lowerIndex = poles.Lower();
+		Standard_Integer upperIndex = poles.Upper();
+		std::cout << "  - Point messages: ";
+		for (Standard_Integer i = lowerIndex; i <= upperIndex; ++i) {
+			// 使用 Value(i) 方法获取索引为 i 的点
+			gp_Pnt point = poles.Value(i);
+			std::cout << "point" << i << ",(" << point.X() << " " << point.Y() << " " << point.Z() << ") ";
+		}
+		std::cout << std::endl;
 		std::cout << "  - Number of Knots: " << aBSpline->NbKnots() << std::endl;
+		TColStd_Array1OfInteger multi = aBSpline->Multiplicities();
+		{
+			std::cout << "  - multiplicity messages: ";
+			Standard_Integer lowerIndex1 = multi.Lower();
+			Standard_Integer upperIndex1 = multi.Upper();
+			for (Standard_Integer i = lowerIndex1; i <= upperIndex1; ++i) {
+				// 使用 Value(i) 方法获取索引为 i 的点
+				Standard_Real val = multi.Value(i);
+				std::cout << "multiplicity:" << val << ",";
+			}
+			std::cout << std::endl;
+		}
+		{
+			std::cout << "  - multiplicity knot messages: ";
+			TColStd_Array1OfReal knots = aBSpline->Knots();
+			Standard_Integer lowerIndex1 = knots.Lower();
+			Standard_Integer upperIndex1 = knots.Upper();
+			for (Standard_Integer i = lowerIndex1; i <= upperIndex1; ++i) {
+				// 使用 Value(i) 方法获取索引为 i 的点
+				Standard_Real val = knots.Value(i);
+				std::cout << "multiply knot:" << val << ",";
+			}
+			std::cout << std::endl;
+		}
+		TColStd_Array1OfReal knots = aBSpline->KnotSequence();
+		Standard_Integer lowerIndex1 = knots.Lower();
+		Standard_Integer upperIndex1 = knots.Upper();
+		std::cout << "  - knot sequence messages: ";
+		for (Standard_Integer i = lowerIndex1; i <= upperIndex1; ++i) {
+			// 使用 Value(i) 方法获取索引为 i 的点
+			Standard_Real val = knots.Value(i);
+			std::cout << "knot:" << val << ",";
+		}
+		std::cout << std::endl;
+		do
+		{
+			std::cout << "  - uv sequence messages: " ;
+			Standard_Real firstU = aBSpline->FirstParameter();
+			Standard_Real lastU = aBSpline->LastParameter();
+			std::cout << "firstU :" << firstU << "lastU " << lastU ;
+
+			gp_Pnt pntU0, pntU1;
+			//pntU0 = ComputePointOnCurve(0, poles, aBSpline->Degree(), knots);
+			//pntU1 = ComputePointOnCurve(1, poles, aBSpline->Degree(), knots);
+			aBSpline->D0(firstU, pntU0);
+			aBSpline->D0(lastU, pntU1);
+			std::cout << " pntU0 (" << pntU0.X() << " " << pntU0.Y() << " " << pntU0.Z() << ") ";
+			std::cout << " pntU1 (" << pntU1.X() << " " << pntU1.Y() << " " << pntU1.Z() << ") ";
+			std::cout << std::endl;
+		} while (0);
+
 		std::cout << "  - Is Periodic: " << (aBSpline->IsPeriodic() ? "True" : "False") << std::endl;
 		std::cout << "  - Is Rational: " << (aBSpline->IsRational() ? "True" : "False") << std::endl;
 	}
@@ -355,9 +484,11 @@ void GetEdgeCurve(TopoDS_Shape myshape)
 			TopLoc_Location loc = anEdge.Location();
 			Standard_Real fd, ld;
 			Handle(Geom_Curve) curve = BRep_Tool::Curve(anEdge, fd, ld);
+			std::cout << "-- edge curve interval:" << fd<<"," << ld << std::endl;
 			PrintGeomCurveInfo(curve);
 			Standard_Real First, Last;
 			const Handle(Geom2d_Curve) aCurve = BRep_Tool::CurveOnSurface(anEdge, fc, First, Last);
+			std::cout << "-- edge on surfce curve interval:" << First << "," << Last << std::endl;
 			PrintGeneralCurveInfo(aCurve);
 			//Handle(Geom2d_TrimmedCurve) aTrimmedCurve = new Geom2d_TrimmedCurve(aCurve, First, First);
 		}

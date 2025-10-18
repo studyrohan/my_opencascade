@@ -105,6 +105,7 @@
 #include <gp_Pnt2d.hxx>
 #include <iostream>
 #include <GeomAPI_IntCS.hxx>
+#include "BasicFucntion.h"
 
 
 
@@ -128,7 +129,7 @@ static void testContinity();
 
 TopoDS_Shape runMyCode()
 {
-	int index = 9;
+	int index = 4;
 	switch (index)
 	{
 	case 0:
@@ -403,6 +404,7 @@ TopoDS_Shape runMyCode()
 	}
 	case 10:
 	{
+		testBasizerFunction();
 		break;
 	}
 	default:
@@ -499,6 +501,17 @@ bool CheckG2Continuity(const TopoDS_Face& face1, const TopoDS_Face& face2, const
 	// 所有采样点均通过 G0, G1, G2 检查
 	return true;
 }
+
+/*在微分几何中，G²连续性（曲率连续）要求在两个曲面沿着公共边界相遇时，满足以下条件：
+
+​位置连续 (G⁰)​​：边界上的点完全重合。
+​切线连续 (G¹)​​：边界上任意一点处，两个曲面具有相同的切平面。
+​曲率连续 (G²)​​：边界上任意一点处，两个曲面在跨越边界时曲率的变化是连续的。这意味着曲面的曲率半径保持一致，没有突变，从而形成极其平滑的过渡
+。*/
+/*这个函数可以被看作是一个信息检索工具。它读取的是在建模操作（如布尔运算、倒角、曲面缝合）
+中预先定义并存储在拓扑数据结构中的连续性标签或属性
+，而不是在调用时实时进行计算判断*/
+
 GeomAbs_Shape GetFaceContinuity(const TopoDS_Face& face1, const TopoDS_Face& face2, const TopoDS_Edge& sharedEdge) {
 	// 使用 BRep_Tool 获取拓扑边上存储的连续性信息
 	GeomAbs_Shape continuity = BRep_Tool::Continuity(sharedEdge, face1, face2);
