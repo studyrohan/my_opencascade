@@ -489,6 +489,7 @@ IntAna_QuadQuadGeo::IntAna_QuadQuadGeo( const gp_Pln& P
   P.Coefficients(A,B,C,D);
   axec.Location().Coord(X,Y,Z);
   // la distance axe/plan est evaluee a l origine de l axe.
+  // 轴/平面的距离是在轴的原点处进行测量的。
   dist = A*X + B*Y + C*Z + D; 
 
   Standard_Real tolang = Tolang;
@@ -519,6 +520,8 @@ IntAna_QuadQuadGeo::IntAna_QuadQuadGeo( const gp_Pln& P
   if (inter.IsParallel()) {
     // Le resultat de l intersection Plan-Cylindre est de type droite.
     // il y a 1 ou 2 droites
+    // 椭圆与圆柱体的交集结果为直线类型。
+    // 会有 1 条或 2 条直线。
 
     typeres = IntAna_Line;
     omega.SetCoord(X-dist*A,Y-dist*B,Z-dist*C);
@@ -590,6 +593,7 @@ IntAna_QuadQuadGeo::IntAna_QuadQuadGeo( const gp_Pln& P
 
     // debug JAG : le nbint = 0 doit etre remplace par typeres = IntAna_Empty
     // et ne pas etre seulement supprime...
+    // 调试 JAG ：变量 nbint 的值应更改为 typeres = IntAna_Empty ，而不能仅仅将其删除……
 
     else {
       typeres = IntAna_Empty;
@@ -597,6 +601,7 @@ IntAna_QuadQuadGeo::IntAna_QuadQuadGeo( const gp_Pln& P
   }
   else {     // Il y a un point d intersection. C est le centre du cercle
              // ou de l ellipse solution.
+      // 存在一个交点。它就是圆或椭圆解的中心。
 
     nbint = 1;
     axey = normp.Crossed(axec.Direction().XYZ());
@@ -607,6 +612,7 @@ IntAna_QuadQuadGeo::IntAna_QuadQuadGeo( const gp_Pln& P
     if (sint < Tol/radius) {
 
       // on construit un cercle avec comme axes X et Y ceux du cylindre
+        // 我们将用圆柱体的 X 轴和 Y 轴作为圆的坐标轴来构建一个圆。
       typeres = IntAna_Circle;
 
       dir1 = axec.Direction(); // axe Z
@@ -887,6 +893,7 @@ void IntAna_QuadQuadGeo::Perform( const gp_Pln& P
 
   nbint = 0;
 // debug JAG : on met typeres = IntAna_Empty par defaut...
+  //调试 JAG：默认将 typeres 设为 IntAna_Empty...
   typeres = IntAna_Empty;
   
   P.Coefficients(A,B,C,D);
@@ -898,12 +905,14 @@ void IntAna_QuadQuadGeo::Perform( const gp_Pln& P
   if (Abs( Abs(dist) - radius) < Epsilon(radius)) {
     // on a une seule solution : le point projection du centre de la sphere
     // sur le plan
+      //只有一种解法：球心在平面上的投影点
     nbint = 1;
     typeres = IntAna_Point;
     pt1.SetCoord(X - dist*A, Y - dist*B, Z - dist*C);
   }
   else if (Abs(dist) < radius) {
     // on a un cercle solution
+    //我们有一个圆形的解。
     nbint = 1;
     typeres = IntAna_Circle;
     pt1.SetCoord(X - dist*A, Y - dist*B, Z - dist*C);

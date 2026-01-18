@@ -112,6 +112,9 @@
 
 static TopoDS_Shape projection();
 static TopoDS_Shape fill();
+static TopoDS_Shape fill2();
+
+
 static TopoDS_Shape cylinder();
 static TopoDS_Shape point_projection_plane();
 static TopoDS_Shape point_projection_bsurf();
@@ -120,16 +123,20 @@ static TopoDS_Shape rollBall();
 static TopoDS_Shape sewFace();
 static void ComputePointToNURBSDistance();
 static void CurveCurveIntersectionExample();
-static void CurveSurfaceIntersectionExample();
+//static void CurveSurfaceIntersectionExample();
+static void NurbsCurveAnalyseSurfaceIntersectionExample();
+static void NurbsCurveNurbsSurfaceIntersectionExample();
+static int AnalyseCurveAnalyseSurfaceIntersection();
 static GeomAbs_Shape CheckContinuity(
 	const Handle(Geom_Curve)& curve1,
 	const Handle(Geom_Curve)& curve2,
 	double tolerance);
 static void testContinity();
+static int testBCurveCurve();
 
 TopoDS_Shape runMyCode()
 {
-	int index = 4;
+	int index = 11;
 	switch (index)
 	{
 	case 0:
@@ -398,13 +405,24 @@ TopoDS_Shape runMyCode()
 	case 9:
 	{
 		ComputePointToNURBSDistance();
-		CurveCurveIntersectionExample();
+
 		testContinity();
 		return sewFace();
 	}
 	case 10:
 	{
 		testBasizerFunction();
+		break;
+	}
+	case 11:
+	{
+		fill2();
+		testBCurveCurve();
+		//CurveSurfaceIntersectionExample();
+		CurveCurveIntersectionExample();
+		AnalyseCurveAnalyseSurfaceIntersection();
+		NurbsCurveAnalyseSurfaceIntersectionExample();
+		NurbsCurveNurbsSurfaceIntersectionExample();
 		break;
 	}
 	default:
@@ -742,6 +760,50 @@ TopoDS_Shape fill()
 
 	GetEdgeCurve(filled_face);
 	return filled_face;
+}
+
+TopoDS_Shape fill2()
+{
+	// 1. 准备两条B样条曲线作为边界
+	// 假设 curve1 和 curve2 是已经创建好的 Handle(Geom_BSplineCurve) 对象
+	TColgp_Array1OfPnt points1(1, 4);
+	points1.SetValue(1, gp_Pnt(0, 0, 0));
+	points1.SetValue(2, gp_Pnt(1, 0, 1));
+	points1.SetValue(3, gp_Pnt(2, 0, 1));
+	points1.SetValue(4, gp_Pnt(3, 0, 0));  // 终点在 (3,0,0)
+	Handle(Geom_BezierCurve) bezierCurve1 = new Geom_BezierCurve(points1);
+	Handle(Geom_BSplineCurve) curve1 = GeomConvert::CurveToBSplineCurve(bezierCurve1);
+
+	TColgp_Array1OfPnt points2(1, 3);
+	points2.SetValue(1, gp_Pnt(4, 0, 0));  // 起点在 (4,0,0)，不与第一条曲线连接
+	points2.SetValue(2, gp_Pnt(5, 0, 1));
+	points2.SetValue(3, gp_Pnt(6, 0, 1));
+	//points2.SetValue(4, gp_Pnt(7, 0, 0));
+	Handle(Geom_BezierCurve) bezierCurve2 = new Geom_BezierCurve(points2);
+	Handle(Geom_BSplineCurve) curve2 = GeomConvert::CurveToBSplineCurve(bezierCurve2);
+
+
+	// 定义要测试的填充风格
+	GeomFill_FillingStyle styles[] = { GeomFill_StretchStyle, GeomFill_CoonsStyle, GeomFill_CurvedStyle };
+	const char* styleNames[] = { "Stretch", "Coons", "Curved" };
+
+	for (int i = 0; i < 3; i++) {
+		// 2. 创建填充对象并初始化
+		GeomFill_BSplineCurves loftGenerator;
+		loftGenerator.Init(curve1, curve2, styles[i]); // 用两条曲线和指定风格初始化
+
+		// 3. 获取生成的曲面
+		Handle(Geom_BSplineSurface) loftSurface = loftGenerator.Surface();
+
+		if (!loftSurface.IsNull()) {
+			std::cout << styleNames[i] << "风格曲面创建成功！" << std::endl;
+			std::cout << "  控制点网格: " << loftSurface->NbUPoles()
+				<< " x " << loftSurface->NbVPoles() << std::endl;
+			// 后续可以将曲面转换为TopoDS_Face并进行显示或导出[1](@ref)
+		}
+		TopoDS_Shape filled_face = BRepBuilderAPI_MakeFace(loftSurface, 0);
+		return filled_face;
+	}
 }
 
 TopoDS_Shape cylinder()
@@ -1193,6 +1255,155 @@ void ComputePointToNURBSDistance()
 	}
 }
 
+
+#include <gp_Dir2d.hxx>
+#include <gp_Lin2d.hxx>
+#include <gp_Pnt2d.hxx>
+#include <IntAna2d_AnaIntersection.hxx>
+#include <iostream>
+#include <gp_Lin2d.hxx>
+int testAnalyseCurveCurve()
+{
+	// 1. 创建两条二维直线
+	gp_Lin2d line1(gp_Pnt2d(0.0, 0.0), gp_Dir2d(1.0, 1.0));   // 过(0,0)，方向(1,1)
+	gp_Lin2d line2(gp_Pnt2d(2.0, 10.0), gp_Dir2d(1.0, -1.0)); // 过(2,10)，方向(1,-1)
+
+	// 2. 创建求交器并执行计算
+	IntAna2d_AnaIntersection intersector;
+	intersector.Perform(line1, line2);
+
+	// 3. 检查并输出结果
+	if (intersector.IsDone()) {
+		if (!intersector.IsEmpty()) {
+			// 获取第一个（也是唯一一个）交点
+			IntAna2d_IntPoint point = intersector.Point(1);
+			gp_Pnt2d coord = point.Value();
+			std::cout << "交点坐标: (" << coord.X() << ", " << coord.Y() << ")" << std::endl;
+		}
+		else {
+			std::cout << "两直线没有交点（平行）。" << std::endl;
+		}
+	}
+	return 0;
+}
+#include <Geom2dAPI_InterCurveCurve.hxx>
+#include <Geom2d_BSplineCurve.hxx>
+// ... 其他必要的头文件，例如创建曲线所需的头文件
+
+int testBCurveCurve() {
+	// 1. 创建第一条NURBS曲线的控制点
+	TColgp_Array1OfPnt2d points1(1, 4);
+	points1(1) = gp_Pnt2d(0.0, 0.0);
+	points1(2) = gp_Pnt2d(3.0, 6.0);
+	points1(3) = gp_Pnt2d(7.0, 1.0);
+	points1(4) = gp_Pnt2d(10.0, 5.0);
+
+	// 2. 创建第二条NURBS曲线的控制点
+	TColgp_Array1OfPnt2d points2(1, 4);
+	points2(1) = gp_Pnt2d(0.0, 5.0);
+	points2(2) = gp_Pnt2d(5.0, 0.0);
+	points2(3) = gp_Pnt2d(5.0, 8.0);
+	points2(4) = gp_Pnt2d(10.0, 3.0);
+
+	// 3. 定义节点向量和重复度（这里创建简单的均匀B样条曲线）
+	Standard_Integer degree = 2;
+	TColStd_Array1OfReal knots(1, 3);
+	knots(1) = 0.0;
+	knots(2) = 0.5;
+	knots(3) = 1.0;
+
+	TColStd_Array1OfInteger mults(1, 3);
+	mults(1) = 3; // 起始节点重复度为 degree+1
+	mults(2) = 1;
+	mults(3) = 3; // 结束节点重复度为 degree+1
+
+	// 4. 创建两条NURBS曲线
+	Handle(Geom2d_BSplineCurve) curve1 = new Geom2d_BSplineCurve(points1, knots, mults, degree);
+	Handle(Geom2d_BSplineCurve) curve2 = new Geom2d_BSplineCurve(points2, knots, mults, degree);
+
+	// 5. 计算两条曲线的交点，容差设置为1e-6
+	Geom2dAPI_InterCurveCurve intersector(curve1, curve2, 1.0e-6);
+
+	// 6. 检查计算是否成功并输出结果
+	Standard_Integer num_points = intersector.NbPoints();
+	std::cout << "找到交点数量: " << num_points << std::endl;
+
+	// 7. 遍历所有交点
+	for (Standard_Integer i = 1; i <= num_points; ++i) {
+		gp_Pnt2d a_point = intersector.Point(i);
+		std::cout << "交点 " << i << ": (" << a_point.X() << ", " << a_point.Y() << ")" << std::endl;
+	}
+
+	// 8. 检查是否有相交线段（例如曲线部分重叠）
+	Standard_Integer num_segments = intersector.NbSegments();
+	if (num_segments > 0) {
+		std::cout << "找到相交线段数量: " << num_segments << std::endl;
+		for (Standard_Integer i = 1; i <= num_segments; ++i) {
+			Handle(Geom2d_Curve) seg1, seg2;
+			intersector.Segment(i, seg1, seg2);
+			// 可以进一步处理seg1和seg2，例如获取其参数范围等
+			std::cout << "获取到相交线段 " << i << std::endl;
+		}
+	}
+	return 0;
+}
+
+#include <GeomAPI_IntCS.hxx>
+#include <Geom_CylindricalSurface.hxx>
+#include <Geom_Line.hxx>
+#include <gp_Ax3.hxx>
+#include <gp_Lin.hxx>
+#include <gp_Pnt.hxx>
+#include <gp_Dir.hxx>
+#include <iostream>
+
+int testAnalyseCurveSurface() {
+	// 1. 创建一条三维直线
+	gp_Lin a_line(gp_Pnt(0.0, 0.0, 0.0), gp_Dir(1.0, 1.0, 1.0));
+	Handle(Geom_Line) curve = new Geom_Line(a_line);
+
+	// 2. 创建一个圆柱面
+	gp_Ax3 an_axis; // 默认坐标系（原点，Z轴方向）
+	Handle(Geom_CylindricalSurface) surface = new Geom_CylindricalSurface(an_axis, 5.0);
+
+	// 3. 执行求交计算
+	GeomAPI_IntCS intersector(curve, surface);
+
+	// 4. 检查并输出结果
+	if (intersector.IsDone()) {
+		Standard_Integer num_points = intersector.NbPoints();
+		std::cout << "找到交点数量: " << num_points << std::endl;
+
+		for (Standard_Integer i = 1; i <= num_points; ++i) {
+			gp_Pnt a_point = intersector.Point(i);
+			std::cout << "交点 " << i << ": ("
+				<< a_point.X() << ", " << a_point.Y() << ", " << a_point.Z() << ")" << std::endl;
+		}
+	}
+	else {
+		std::cout << "求交计算失败！" << std::endl;
+	}
+	return 0;
+}
+/*
+二维求交使用类Geom2dAPI_InterCurveCurve， 这个类是对类Geom2dInt_GInter的封装。在类Geom2dInt_GInter中，
+如果只输入一条曲线，可以计算自交，如果输入两条曲线，计算两条曲线的相交。
+
+IntCurve_IntConicConic：二次曲线与二次曲线求交。二次曲线与二次曲线求交都先使用几何方法计算交点，
+再判断是否在参数范围内；
+
+Geom2dInt_TheIntConicCurveOfGInter：二次曲线与任意曲线求交。二次曲线与任意曲线求交通过类
+Geom2dInt_MyImpParToolOfTheIntersectorOfTheIntConicCurveOfGInter建立距离方程，
+使用类math_FunctionAllRoots来对方程进行求解；
+
+Geom2dInt_TheIntPCurvePCurveOfGInter：任意曲线与任意曲线求交。自由曲线求交使用离散法
+IntCurve_IntPolyPolyGen，使用类Geom2dInt_ThePolygon2dOfTheIntPCurvePCurveOfGInter将曲线通过采样点生成多
+段线Polyline，
+使用类Intf_InterferencePolygon2d计算多段线之间的粗交点，再使用类IntCurve_ExactIntersectionPoint通过粗
+交点找到曲线上的精确交点；
+*/
+
+
 void CurveCurveIntersectionExample()
 {
 	// 1. 创建第一条NURBS曲线 (示例: 通过点列拟合)
@@ -1261,7 +1472,60 @@ void CurveCurveIntersectionExample()
 	}
 }
 
-void CurveSurfaceIntersectionExample()
+void NurbsCurveAnalyseSurfaceIntersectionExample()
+{
+	// 1. 创建一条自由曲线（B样条曲线）
+	TColgp_Array1OfPnt poles(1, 4);
+	poles.SetValue(1, gp_Pnt(0.0, 0.0, 0.0));
+	poles.SetValue(2, gp_Pnt(5.0, 0.0, 5.0));
+	poles.SetValue(3, gp_Pnt(10.0, 0.0, 0.0));
+	poles.SetValue(4, gp_Pnt(15.0, 0.0, 5.0));
+
+	// 设置节点向量和重复度
+	TColStd_Array1OfReal knots(1, 2);
+	knots.SetValue(1, 0.0);
+	knots.SetValue(2, 1.0);
+
+	TColStd_Array1OfInteger mults(1, 2);
+	mults.SetValue(1, 4);
+	mults.SetValue(2, 4);
+
+	Standard_Integer degree = 3;
+	Handle(Geom_BSplineCurve) curve = new Geom_BSplineCurve(poles, knots, mults, degree);
+
+	// 2. 创建一个解析曲面（圆柱面）
+	gp_Ax3 axis; // 默认坐标系（原点，Z轴方向）
+	Handle(Geom_CylindricalSurface) surface = new Geom_CylindricalSurface(axis, 5.0);
+
+	// 3. 执行求交计算
+	GeomAPI_IntCS intersector(curve, surface);
+
+	// 4. 检查计算是否成功
+	if (intersector.IsDone()) {
+		Standard_Integer nbrPoints = intersector.NbPoints();
+		std::cout << "找到交点数量: " << nbrPoints << std::endl;
+
+		// 5. 遍历所有交点
+		for (Standard_Integer i = 1; i <= nbrPoints; ++i) {
+			gp_Pnt point = intersector.Point(i);
+			std::cout << "交点 " << i << ": ("
+				<< point.X() << ", " << point.Y() << ", " << point.Z() << ")" << std::endl;
+
+			// 注意：GeomAPI_IntCS 的 Parameters 方法可能因版本不同而访问方式有异
+			// 获取交点参数通常需要通过底层对象，以下为概念性代码
+			// Standard_Real u, v, w;
+			// intersector.Parameters(i, u, v, w);
+			// std::cout << "曲线参数 w: " << w << ", 曲面参数 u: " << u << ", v: " << v << std::endl;
+		}
+	}
+	else {
+		std::cout << "求交计算失败！" << std::endl;
+	}
+
+	return ;
+}
+
+void NurbsCurveNurbsSurfaceIntersectionExample()
 {
 	// 1. 创建一条B样条曲线 (示例)
 	TColgp_Array1OfPnt curvePoints(1, 3);
@@ -1323,6 +1587,53 @@ void CurveSurfaceIntersectionExample()
 	else
 	{
 		std::cout << "Intersection calculation failed or was not performed." << std::endl;
+	}
+}
+//OpenCASCADE中几何曲线与曲面求交使用类GeomAPI_IntCS，是对类IntCurveSurface_HInter的简单封装。在IntCurveSurface_HInter中对曲线和曲面求交分为以下几种类型：
+
+//PerformConicSurf：二次曲线与曲面求交，其中又分为两类：二次曲线与二次曲面求交和二次曲线和自由曲面求交；
+
+//InternalPerformCurveQuadric：自由曲线与二次曲面求交；
+
+//InternalPerform：自由曲线和自由曲面求交
+// https://mp.weixin.qq.com/s?__biz=MzUzNjU4NTM5OQ==&mid=2247486556&idx=1&sn=b1628cded7de1b2c54b727e0360a9ffa&chksm=fba33abf27518a574b8890596a439bf73ee55c3903963c7e0c1f9bd431aeed8a28fb0e12444a#rd
+
+int AnalyseCurveAnalyseSurfaceIntersection()
+{
+	gp_Pnt aLinePnt(0.0, 0.0, 0.0);
+	gp_Dir aLineDir(1.0, 1.0, 1.0);
+	gp_Lin aLin(aLinePnt, aLineDir);
+	Handle(Geom_Line) aCurve = new Geom_Line(aLin);
+
+	// 2. 定义一个圆柱面 (位于原点，Z轴为对称轴，半径5)
+	gp_Ax3 anAx3; // 使用默认坐标系 (原点, Z轴)
+	Handle(Geom_CylindricalSurface) aSurface = new Geom_CylindricalSurface(anAx3, 5.0);
+
+	// 3. 创建求交对象并执行计算
+	GeomAPI_IntCS anIntersector(aCurve, aSurface); // 构造函数中直接计算[6](@ref)
+
+	// 4. 检查计算是否成功
+	if (!anIntersector.IsDone()) { // [6](@ref)
+		std::cout << "Error: Intersection calculation failed or not performed." << std::endl;
+		return 1;
+	}
+
+	// 5. 获取交点数量并输出信息
+	Standard_Integer aNbPoints = anIntersector.NbPoints(); // [6](@ref)
+	std::cout << "Number of intersection points found: " << aNbPoints << std::endl;
+
+	// 6. 遍历所有交点
+	for (Standard_Integer i = 1; i <= aNbPoints; ++i) { // 注意索引从1开始[6](@ref)
+		// 获取第i个交点的三维坐标
+		gp_Pnt aPnt = anIntersector.Point(i); // [6](@ref)
+		std::cout << "Point " << i << ": ("
+			<< aPnt.X() << ", " << aPnt.Y() << ", " << aPnt.Z() << ")" << std::endl;
+
+		// 获取该交点的参数：U,V是曲面参数，W是曲线参数[6](@ref)
+		Standard_Real U, V, W;
+		anIntersector.Parameters(i, U, V, W); // [6](@ref)
+		std::cout << "  Surface parameters (U, V): " << U << ", " << V << std::endl;
+		std::cout << "  Curve parameter (W): " << W << std::endl;
 	}
 }
 

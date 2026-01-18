@@ -457,6 +457,7 @@ void  GeomFill_BSplineCurves::Init
     if ( CC2->Degree() < DegU )  CC2->IncreaseDegree(DegU);
     
     // Mise en conformite des distributions de noeuds
+    //节点分布的合规性调整
     Standard_Integer NbPoles = SetSameDistribution(CC1,CC2);
     TColgp_Array2OfPnt Poles(1,NbPoles, 1,2);
     TColgp_Array1OfPnt P1( 1, NbPoles);
@@ -483,6 +484,7 @@ void  GeomFill_BSplineCurves::Init
     
     
     // Traitement des courbes rationelles
+    //// 有理曲线的处理
     if (isRat) {
       TColStd_Array2OfReal Weights(1,NbPoles, 1,2);
       TColStd_Array1OfReal W1(1,NbPoles);

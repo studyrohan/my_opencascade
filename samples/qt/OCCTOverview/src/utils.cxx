@@ -480,6 +480,13 @@ void GetEdgeCurve(TopoDS_Shape myshape)
 		for (edgeExplorer.Init(fc, TopAbs_EDGE); edgeExplorer.More(); edgeExplorer.Next())
 		{
 			const TopoDS_Edge& anEdge = TopoDS::Edge(edgeExplorer.Current());
+			if (BRep_Tool::Degenerated(anEdge)) {
+				std::cout << "这条边是退化边。" << std::endl;
+			}
+			else if (BRep_Tool::IsClosed(anEdge, fc)) {
+				std::cout << "发现一条缝合边（Seam Edge）" << std::endl;
+				// 可以进行其他操作，如高亮显示这条边
+			}
 			GetCurveInfoFromEdge(anEdge);
 			TopLoc_Location loc = anEdge.Location();
 			Standard_Real fd, ld;
