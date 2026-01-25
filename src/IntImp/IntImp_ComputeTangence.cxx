@@ -65,6 +65,25 @@ Standard_Boolean IntImp_ComputeTangence(const gp_Vec DPuv[],
 //on triera par ordre croissant les cosinus :le plus petit cosinus determine le
 // meilleure angle donc la meilleure iso a choisir pour trouver
 // l intersection 
+// 传入参数：
+// DPuv [0] = 在卡罗 1 上沿 u 方向的导数
+// DPuv [1] = 在卡罗 1 上沿 v 方向的导数
+// DPuv [2] = 在卡罗 2 上沿 u 方向的导数
+// DPuv [3] = 在卡罗 2 上沿 v 方向的导数
+// EpsUV[0] = 在卡罗 1 上沿 u 方向的容差
+// EpsUV[1] = 在卡罗 1 上沿 v 方向的容差
+// EpsUV[2] = 在卡罗 2 上沿 u 方向的容差
+// EpsUV[3] = 在卡罗 2 上沿 v 方向的容差
+// 输出参数：
+// Tgduv[0] = 交点处卡罗 1 上沿 dp/du 方向的分量
+// Tgduv[1] = 交点处卡罗 1 上沿 dp/dv 方向的分量
+// Tgduv[2] = 交点处卡罗 2 上沿 dp/du 方向的分量
+// Tgduv[3] = 交点处卡罗 2 上沿 dp/dv 方向的分量
+// TabIso[0...3] = 按降序排列的候选最佳等距范围（在交点处）
+// 算法
+// 计算交点处的切线；利用以下性质计算向量 a^(b^c) = b(ac) - c(ab) 可得到交点处切线在两个切平面中的分量（t = n1^n2 或 n1 为第一卡罗的法向量，n2 为第二卡罗的法向量）
+// 确保两个卡罗的切平面不会相交// 在相切平面内的交点组成部分能够确定一个单元格的等参数面与其逆单元格之间的角度
+// 我们将按照递增顺序对余弦值进行排序：最小的余弦值决定了最佳角度，因此应选择最佳的等参数面来寻找交点
 
 {
    Standard_Real NormDuv[4], aM2, aTol2;

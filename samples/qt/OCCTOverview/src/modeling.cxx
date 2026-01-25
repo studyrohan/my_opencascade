@@ -105,6 +105,8 @@
 #include <gp_Pnt2d.hxx>
 #include <iostream>
 #include <GeomAPI_IntCS.hxx>
+#include <BRepAlgoAPI_Section.hxx>
+#include <IntPatch_PrmPrmIntersection.hxx>
 #include "BasicFucntion.h"
 
 
@@ -133,6 +135,7 @@ static GeomAbs_Shape CheckContinuity(
 	double tolerance);
 static void testContinity();
 static int testBCurveCurve();
+static int testMarching();
 
 TopoDS_Shape runMyCode()
 {
@@ -423,6 +426,7 @@ TopoDS_Shape runMyCode()
 		AnalyseCurveAnalyseSurfaceIntersection();
 		NurbsCurveAnalyseSurfaceIntersectionExample();
 		NurbsCurveNurbsSurfaceIntersectionExample();
+		testMarching();
 		break;
 	}
 	default:
@@ -1598,6 +1602,9 @@ void NurbsCurveNurbsSurfaceIntersectionExample()
 //InternalPerform：自由曲线和自由曲面求交
 // https://mp.weixin.qq.com/s?__biz=MzUzNjU4NTM5OQ==&mid=2247486556&idx=1&sn=b1628cded7de1b2c54b727e0360a9ffa&chksm=fba33abf27518a574b8890596a439bf73ee55c3903963c7e0c1f9bd431aeed8a28fb0e12444a#rd
 
+#include <IntPatch_PrmPrmIntersection.hxx>
+#include <Adaptor3d_TopolTool.hxx>
+#include <IntPatch_WLine.hxx>
 int AnalyseCurveAnalyseSurfaceIntersection()
 {
 	gp_Pnt aLinePnt(0.0, 0.0, 0.0);
@@ -1637,3 +1644,126 @@ int AnalyseCurveAnalyseSurfaceIntersection()
 	}
 }
 
+
+int testMarching()
+{
+	//gp_Pln plane(gp::XOY());
+	//TopoDS_Face face1 = BRepBuilderAPI_MakeFace(plane, -10, 10, -10, 10).Face();
+
+	//// 圆柱面：轴线沿Z轴，半径5
+	//gp_Ax2 axis(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1));
+	//Standard_Real radius = 5.0;
+	//Standard_Real height = 15.0;
+	//TopoDS_Shape cylinder = BRepPrimAPI_MakeCylinder(axis, radius, height).Shape();
+	////TopoDS_Face face2 = TopoDS::Face(cylinder);
+
+	//// 2. 使用BRepAlgoAPI_Section进行求交
+	//// 设置参数以促使使用Marching方法（例如，将曲面转换为NURBS）
+	//BRepAlgoAPI_Section section(face1, cylinder, Standard_False);
+	//section.ComputePCurveOn1(Standard_True);
+	//section.Approximation(Standard_True);  // 启用近似，有助于Marching方法
+	//section.Build();
+
+	//// 3. 检查求交是否成功
+	//if (!section.IsDone()) {
+	//	std::cerr << "Intersection failed!" << std::endl;
+	//	return 1;
+	//}
+
+	//// 4. 获取交线结果
+	//TopoDS_Shape resultShape = section.Shape();
+
+	//// 5. 遍历结果中的边（交线）
+	//int edgeCount = 0;
+	//for (TopExp_Explorer explorer(resultShape, TopAbs_EDGE); explorer.More(); explorer.Next()) {
+	//	edgeCount++;
+	//	TopoDS_Edge edge = TopoDS::Edge(explorer.Current());
+	//	std::cout << "Found intersection edge " << edgeCount << std::endl;
+	//	// 此处可以进一步处理每个边，例如获取顶点坐标或参数化曲线
+	//}
+
+	//if (edgeCount == 0) {
+	//	std::cout << "No intersection found." << std::endl;
+	//}
+	//else {
+	//	std::cout << "Total intersection edges: " << edgeCount << std::endl;
+	//}
+
+
+	// 1. 创建两个参数曲面
+	// 平面：Z=0
+	gp_Ax3 planeAx3(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1));
+	Handle(Geom_Plane) plane = new Geom_Plane(planeAx3);
+	//GeomAdaptor_Surface adaptorPlane(plane);
+	Handle(Adaptor3d_Surface) adaptorPlane = new GeomAdaptor_Surface(plane);
+
+	// 圆柱面：半径5，高度15，沿Z轴
+	gp_Ax3 cylAx3(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1));
+	Handle(Geom_CylindricalSurface) cylinder = new Geom_CylindricalSurface(cylAx3, 5.0);
+	//GeomAdaptor_Surface adaptorCylinder(cylinder);
+	Handle(Adaptor3d_Surface) adaptorCylinder = new GeomAdaptor_Surface(cylinder);
+	// 2. 创建IntPatch_PrmPrmIntersection对象
+	IntPatch_PrmPrmIntersection intersector;
+
+	// 3. 设置计算参数
+	Standard_Real TolArc = 1.0e-6;      // 弧线精度容差
+	Standard_Real TolTang = 1.0e-6;     // 切线精度容差
+	Standard_Real UVMaxStep = 0.1;      // 参数空间最大步长
+	Standard_Real Fleche = 0.01;         // 行走线弯曲参数
+
+	// 4. 执行求交计算
+	//intersector.Perform()
+	// 2. 创建对应的拓扑工具
+
+	Handle(Adaptor3d_TopolTool) aTopolTool1 = new Adaptor3d_TopolTool(adaptorPlane);
+	Handle(Adaptor3d_TopolTool) aTopolTool2 = new Adaptor3d_TopolTool(adaptorCylinder);
+
+
+	// 5. 执行求交计算（修正后的调用方式）
+	intersector.Perform(adaptorPlane, aTopolTool1,
+		adaptorCylinder, aTopolTool2,
+		TolArc, TolTang, UVMaxStep, Fleche);
+	//intersector.Perform(domain1, domain2, TolArc, TolTang, UVMaxStep, Fleche);
+
+	// 5. 检查计算结果
+	if (!intersector.IsDone()) {
+		std::cerr << "Intersection calculation failed!" << std::endl;
+		return 1;
+	}
+
+	if (intersector.IsEmpty()) {
+		std::cout << "No intersection found." << std::endl;
+		return 0;
+	}
+
+	// 6. 获取交线结果
+	IntPatch_SequenceOfLine lines;
+	if (intersector.IsDone())
+	{
+		const Standard_Integer nblm = intersector.NbLines();
+		for (Standard_Integer i = 1; i <= nblm; i++)
+			lines.Append(intersector.Line(i));
+	}
+	std::cout << "Number of intersection lines: " << lines.Length() << std::endl;
+
+	// 7. 遍历所有交线
+	for (int i = 1; i <= lines.Length(); i++) {
+		Handle(IntPatch_Line) line = lines(i);
+
+		// 检查是否为WLine（Walking Line）
+		if (line->ArcType() == IntPatch_Walking) {
+			Handle(IntPatch_WLine) wline = Handle(IntPatch_WLine)::DownCast(line);
+			std::cout << "WLine " << i << " has " << wline->NbPnts() << " points" << std::endl;
+
+			// 可以进一步处理WLine中的点
+			for (int j = 1; j <= wline->NbPnts(); j++) {
+				const IntSurf_PntOn2S& point = wline->Point(j);
+				gp_Pnt p3d = point.Value();
+				// 处理3D点坐标
+				std::cout << "Point " << j << ": (" << p3d.X() << ", " << p3d.Y() << ", " << p3d.Z() << ")" << std::endl;
+			}
+		}
+	}
+
+	return 0;
+}
