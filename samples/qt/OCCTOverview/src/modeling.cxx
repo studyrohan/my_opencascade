@@ -108,6 +108,7 @@
 #include <BRepAlgoAPI_Section.hxx>
 #include <IntPatch_PrmPrmIntersection.hxx>
 #include "BasicFucntion.h"
+#include "BRepBuilderAPI_MakeEdge.hxx"
 
 
 
@@ -136,10 +137,12 @@ static GeomAbs_Shape CheckContinuity(
 static void testContinity();
 static int testBCurveCurve();
 static int testMarching();
+static TopoDS_Shape OffsetWireWithSelfIntersection();
+static TopoDS_Shape OffsetSplineWireCase();
 
 TopoDS_Shape runMyCode()
 {
-	int index = 11;
+	int index = 12;
 	switch (index)
 	{
 	case 0:
@@ -427,6 +430,12 @@ TopoDS_Shape runMyCode()
 		NurbsCurveAnalyseSurfaceIntersectionExample();
 		NurbsCurveNurbsSurfaceIntersectionExample();
 		testMarching();
+		break;
+	}
+	case 12:
+	{
+		return OffsetSplineWireCase();
+		return  OffsetWireWithSelfIntersection();
 		break;
 	}
 	default:
@@ -1763,6 +1772,368 @@ int testMarching()
 				std::cout << "Point " << j << ": (" << p3d.X() << ", " << p3d.Y() << ", " << p3d.Z() << ")" << std::endl;
 			}
 		}
+	}
+
+	return 0;
+}
+
+
+#include <BRepOffsetAPI_MakeOffset.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <gp_Pnt.hxx>
+#include <TopoDS_Wire.hxx>
+#include <TopoDS_Shape.hxx>
+
+// 创建一个简单的矩形线框
+TopoDS_Wire CreateRectangleWire(double width, double height)
+{
+	gp_Pnt p1(0, 0, 0);
+	gp_Pnt p2(width, 0, 0);
+	gp_Pnt p3(width, height, 0);
+	gp_Pnt p4(0, height, 0);
+
+	BRepBuilderAPI_MakeWire wireMaker;
+	wireMaker.Add(BRepBuilderAPI_MakeEdge(p1, p2));
+	wireMaker.Add(BRepBuilderAPI_MakeEdge(p2, p3));
+	wireMaker.Add(BRepBuilderAPI_MakeEdge(p3, p4));
+	wireMaker.Add(BRepBuilderAPI_MakeEdge(p4, p1));
+
+	return wireMaker.Wire();
+}
+
+// 偏置线框并处理自交
+TopoDS_Shape OffsetWireWithSelfIntersection()
+{
+	// 创建原始线框
+	TopoDS_Wire originalWire = CreateRectangleWire(100.0, 50.0);
+
+	// 设置较大的偏置距离以引发自交
+	double offsetDistance = 20.0; // 这个距离可能引发自交
+
+	try {
+		// 创建偏置操作
+		BRepOffsetAPI_MakeOffset offsetMaker;
+		offsetMaker.Init(GeomAbs_Tangent); // 使用圆弧连接方式
+		offsetMaker.AddWire(originalWire);
+		offsetMaker.Perform(offsetDistance);
+
+		// 检查操作是否成功
+		if (offsetMaker.IsDone()) {
+			TopoDS_Shape offsetShape = offsetMaker.Shape();
+			return offsetShape;
+			// 处理成功的偏置结果
+			// 这里可以添加可视化或导出代码
+		}
+		else {
+			// 偏置失败，可能由于自交或其他原因
+			std::cout << "偏置操作失败！" << std::endl;
+		}
+	}
+	catch (Standard_Failure) {
+		std::cout << "偏置过程中发生异常！" << std::endl;
+	}
+	return TopoDS_Shape();
+}
+
+#include <BRepOffsetAPI_MakeOffset.hxx>
+#include <TopoDS_Wire.hxx>
+#include <Geom2d_BSplineCurve.hxx>
+#include <TColgp_Array1OfPnt2d.hxx>
+#include <TColStd_Array1OfReal.hxx>
+#include <TColStd_Array1OfInteger.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <gp_Pnt2d.hxx>
+#include <Geom2dAPI_PointsToBSpline.hxx>
+
+// 创建包含样条曲线的线框（Wire）
+TopoDS_Wire CreateSplineWire()
+{
+	// 定义一系列控制点来构造样条曲线
+	TColgp_Array1OfPnt2d points(1, 5);
+	points.SetValue(1, gp_Pnt2d(0.0, 0.0));
+	points.SetValue(2, gp_Pnt2d(10.0, 15.0));
+	points.SetValue(3, gp_Pnt2d(20.0, 5.0));
+	points.SetValue(4, gp_Pnt2d(30.0, 10.0));
+	points.SetValue(5, gp_Pnt2d(40.0, 0.0));
+
+	// 使用几何API将点拟合成样条曲线
+	Geom2dAPI_PointsToBSpline splineBuilder;
+	splineBuilder.Init(points);
+	Handle(Geom2d_BSplineCurve) splineCurve = splineBuilder.Curve();
+
+	// 1. 定义目标平面。这里以世界坐标系（XY平面）为例。
+	gp_Pln targetPlane; // gp::XOY() 是预定义的XY平面
+	targetPlane.SetLocation(gp_Pnt(0, 0, 0));
+	targetPlane.SetAxis(gp_Ax1({ 0,0,0 }, { 0, 0, 1 }));
+
+	// 2. 使用 GeomAPI::To3d 进行转换
+	Handle(Geom_Curve) geomCurve = GeomAPI::To3d(splineCurve, targetPlane);
+
+	// 创建边并组合成线框
+	BRepBuilderAPI_MakeWire wireMaker;
+	TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(geomCurve); // 在参数范围内创建边
+	wireMaker.Add(edge);
+
+	return wireMaker.Wire();
+}
+
+TopoDS_Shape OffsetSplineWireCase()
+{
+	// 创建样条曲线轮廓
+	TopoDS_Wire splineWire = CreateSplineWire();
+
+	// 设置较大的偏置距离以诱发自交
+	double largeOffsetDistance = 8;
+	//double largeOffsetDistance = 8.0;
+
+	BRepOffsetAPI_MakeOffset offsetMaker;
+	offsetMaker.Init(GeomAbs_Arc); // 使用圆弧连接方式
+
+	// 针对OCC 7.7.0及以上版本，可以尝试开启近似算法（但可能效果有限）
+	// offsetMaker.SetApprox(Standard_True);
+
+	offsetMaker.AddWire(splineWire);
+
+	try {
+		offsetMaker.Perform(largeOffsetDistance);
+
+		if (offsetMaker.IsDone()) {
+			TopoDS_Shape resultShape = offsetMaker.Shape();
+			// 成功获取结果，但可能包含自交区域
+			std::cout << "偏置操作完成，但结果可能包含自相交。" << std::endl;
+			return resultShape;
+		}
+		else {
+			// 偏置算法因自交等问题失败
+			std::cout << "偏置操作失败，可能由于自相交导致。" << std::endl;
+		}
+	}
+	catch (Standard_Failure) {
+		std::cout << "偏置过程中抛出异常。" << std::endl;
+	}
+	return TopoDS_Shape();
+}
+
+
+#include <GeomLib.hxx>
+#include <Geom_BSplineCurve.hxx>
+#include <Geom_BoundedCurve.hxx>
+#include <TColgp_Array1OfPnt.hxx>
+#include <gp_Pnt.hxx>
+
+// 1. 创建一个简单的B样条曲线作为示例
+Handle(Geom_BSplineCurve) CreateSampleBSplineCurve()
+{
+	// 定义控制点
+	TColgp_Array1OfPnt poles(1, 3);
+	poles.SetValue(1, gp_Pnt(0.0, 0.0, 0.0));
+	poles.SetValue(2, gp_Pnt(5.0, 5.0, 0.0));
+	poles.SetValue(3, gp_Pnt(10.0, 0.0, 0.0));
+
+	// 定义节点序列（均匀节点，用于3点2次B样条）
+	Standard_Integer degree = 2;
+	TColStd_Array1OfReal knots(1, 3);
+	knots.SetValue(1, 0.0);
+	knots.SetValue(2, 0.5);
+	knots.SetValue(3, 1.0);
+
+	// 定义节点重数（首末节点重数为degree+1，中间节点重数为1）
+	TColStd_Array1OfInteger mults(1, 3);
+	mults.SetValue(1, degree + 1);
+	mults.SetValue(2, 1);
+	mults.SetValue(3, degree + 1);
+
+	// 创建B样条曲线
+	Handle(Geom_BSplineCurve) curve = new Geom_BSplineCurve(poles, knots, mults, degree);
+	return curve;
+}
+
+void ExtendCurveExample()
+{
+	// 1. 创建一条示例B样条曲线（它继承自Geom_BoundedCurve）
+	TColgp_Array1OfPnt poles(1, 3);
+	poles.SetValue(1, gp_Pnt(0.0, 0.0, 0.0));
+	poles.SetValue(2, gp_Pnt(5.0, 5.0, 0.0));
+	poles.SetValue(3, gp_Pnt(10.0, 0.0, 0.0));
+
+	// 创建节点序列等参数，这里为简化省略，实际使用时需完整定义
+	// Handle(Geom_BSplineCurve) curve = new Geom_BSplineCurve(...);
+	// 假设我们已有一条曲线 originalCurve
+
+	Handle(Geom_BoundedCurve) boundedCurve = CreateSampleBSplineCurve(); // Geom_BSplineCurve可安全转换为Geom_BoundedCurve
+
+	// 2. 定义曲线需要延伸到的目标点
+	gp_Pnt targetPoint(15.0, 2.0, 0.0); // 例如，将曲线向右上方延伸
+
+	// 3. 执行延伸操作
+	// 参数说明：
+	// - boundedCurve: 待延伸的曲线，操作成功后，该句柄指向新的已延伸曲线
+	// - targetPoint: 目标点
+	// - 2: 连续性阶数，要求达到G2连续（曲率连续）
+	// - Standard_True: 在曲线的末端（参数值大的一端）进行延伸
+	GeomLib::ExtendCurveToPoint(boundedCurve, targetPoint, 2, Standard_True);
+
+	// 4. 检查结果
+	// 函数执行后，boundedCurve 本身已被修改为延伸后的曲线
+	Handle(Geom_BSplineCurve) extendedCurve = Handle(Geom_BSplineCurve)::DownCast(boundedCurve);
+	if (!extendedCurve.IsNull()) {
+		// 延伸成功，可以使用extendedCurve
+		gp_Pnt newEndPoint;
+		extendedCurve->D0(extendedCurve->LastParameter(), newEndPoint);
+		// 验证newEndPoint应与targetPoint非常接近
+	}
+}
+
+
+#include <GeomConvert_CompCurveToBSplineCurve.hxx>
+#include <Geom_BSplineCurve.hxx>
+#include <TColgp_Array1OfPnt.hxx>
+#include <TColStd_Array1OfReal.hxx>
+#include <TColStd_Array1OfInteger.hxx>
+#include <gp_Pnt.hxx>
+#include <iostream>
+
+// 创建一条简单的B样条曲线用于测试
+Handle(Geom_BSplineCurve) CreateTestBSplineCurve(const gp_Pnt& startPoint,
+	const gp_Pnt& endPoint,
+	int curveIndex)
+{
+	// 创建控制点数组（简单的线性曲线）
+	TColgp_Array1OfPnt poles(1, 3);
+
+	// 设置控制点，创建一条弯曲的曲线
+	poles.SetValue(1, startPoint);
+	poles.SetValue(2, gp_Pnt((startPoint.X() + endPoint.X()) / 2 + curveIndex,
+		(startPoint.Y() + endPoint.Y()) / 2 + curveIndex,
+		(startPoint.Z() + endPoint.Z()) / 2));
+	poles.SetValue(3, endPoint);
+
+	// 设置节点向量
+	TColStd_Array1OfReal knots(1, 3);
+	knots.SetValue(1, 0.0);
+	knots.SetValue(2, 0.5);
+	knots.SetValue(3, 1.0);
+
+	// 设置节点重数
+	TColStd_Array1OfInteger mults(1, 3);
+	mults.SetValue(1, 2);
+	mults.SetValue(2, 1);
+	mults.SetValue(3, 2);
+
+	// 创建B样条曲线（2阶）
+	return new Geom_BSplineCurve(poles, knots, mults, 2);
+}
+
+int testConcateCurve()
+{
+	try {
+		std::cout << "=== GeomConvert_CompCurveToBSplineCurve 使用示例 ===" << std::endl;
+
+		// 1. 创建三条测试曲线（确保它们首尾相连）
+		std::cout << "创建三条测试曲线..." << std::endl;
+
+		Handle(Geom_BSplineCurve) curve1 = CreateTestBSplineCurve(
+			gp_Pnt(0.0, 0.0, 0.0), gp_Pnt(10.0, 5.0, 2.0), 1);
+		Handle(Geom_BSplineCurve) curve2 = CreateTestBSplineCurve(
+			gp_Pnt(10.0, 5.0, 2.0), gp_Pnt(20.0, 3.0, 5.0), 2);
+		Handle(Geom_BSplineCurve) curve3 = CreateTestBSplineCurve(
+			gp_Pnt(20.0, 3.0, 5.0), gp_Pnt(30.0, 8.0, 3.0), 3);
+
+		std::cout << "曲线1控制点数: " << curve1->NbPoles() << std::endl;
+		std::cout << "曲线2控制点数: " << curve2->NbPoles() << std::endl;
+		std::cout << "曲线3控制点数: " << curve3->NbPoles() << std::endl;
+
+		// 2. 初始化拼接器，以第一条曲线为基准
+		std::cout << "\n初始化曲线拼接器..." << std::endl;
+		GeomConvert_CompCurveToBSplineCurve converter(curve1, Convert_QuasiAngular);
+
+		// 3. 添加第二条曲线
+		std::cout << "添加第二条曲线..." << std::endl;
+		Standard_Real tolerance = 1.0e-5;  // 拼接容差
+		Standard_Boolean addAfter = Standard_True;  // 在基准曲线后添加
+		Standard_Boolean withRatio = Standard_True; // 保持参数化比例
+		Standard_Integer minM = 0;         // 节点最小重数（0表示尝试提高连续性）
+
+		Standard_Boolean success = converter.Add(curve2, tolerance, addAfter, withRatio, minM);
+
+		if (!success) {
+			std::cout << "警告: 第二条曲线添加失败，尝试增大容差..." << std::endl;
+			// 尝试使用更大的容差
+			success = converter.Add(curve2, tolerance * 100.0, addAfter, withRatio, minM);
+		}
+
+		if (!success) {
+			std::cerr << "错误: 无法添加第二条曲线!" << std::endl;
+			return 1;
+		}
+
+		// 4. 添加第三条曲线
+		std::cout << "添加第三条曲线..." << std::endl;
+		success = converter.Add(curve3, tolerance, addAfter, withRatio, minM);
+
+		if (!success) {
+			std::cout << "警告: 第三条曲线添加失败，尝试增大容差..." << std::endl;
+			success = converter.Add(curve3, tolerance * 100.0, addAfter, withRatio, minM);
+		}
+
+		if (!success) {
+			std::cerr << "错误: 无法添加第三条曲线!" << std::endl;
+			return 1;
+		}
+
+		// 5. 获取拼接结果
+		std::cout << "\n获取拼接结果..." << std::endl;
+		Handle(Geom_BSplineCurve) resultCurve = converter.BSplineCurve();
+
+		// 6. 输出结果信息
+		std::cout << "\n=== 拼接结果统计 ===" << std::endl;
+		std::cout << "最终曲线控制点数: " << resultCurve->NbPoles() << std::endl;
+		std::cout << "最终曲线阶数: " << resultCurve->Degree() << std::endl;
+		std::cout << "最终曲线节点数: " << resultCurve->NbKnots() << std::endl;
+		std::cout << "参数范围: [" << resultCurve->FirstParameter()
+			<< ", " << resultCurve->LastParameter() << "]" << std::endl;
+
+		// 7. 验证连续性（在连接点处采样测试）
+		std::cout << "\n=== 连续性验证 ===" << std::endl;
+
+		// 测试第一个连接点（曲线1和曲线2之间）
+		gp_Pnt p1_end, p2_start, p_combined;
+		curve1->D0(curve1->LastParameter(), p1_end);      // 曲线1的终点
+		curve2->D0(curve2->FirstParameter(), p2_start);   // 曲线2的起点
+
+		// 在拼接曲线的对应参数位置采样
+		Standard_Real param_connection1 = curve1->LastParameter() - curve1->FirstParameter();
+		resultCurve->D0(param_connection1, p_combined);
+
+		std::cout << "连接点1间隙检查:" << std::endl;
+		std::cout << "  曲线1终点到曲线2起点距离: " << p1_end.Distance(p2_start) << std::endl;
+		std::cout << "  拼接曲线在连接点位置: " << p_combined.Distance(p1_end) << std::endl;
+
+		// 8. 曲线采样演示
+		std::cout << "\n=== 曲线采样演示 ===" << std::endl;
+		Standard_Real firstParam = resultCurve->FirstParameter();
+		Standard_Real lastParam = resultCurve->LastParameter();
+
+		for (int i = 0; i <= 5; i++) {
+			Standard_Real param = firstParam + (lastParam - firstParam) * i / 5.0;
+			gp_Pnt point;
+			resultCurve->D0(param, point);
+			std::cout << "参数 " << param << ": 点 (" << point.X() << ", "
+				<< point.Y() << ", " << point.Z() << ")" << std::endl;
+		}
+
+		std::cout << "\n=== 曲线拼接完成! ===" << std::endl;
+
+	}
+	catch (const Standard_Failure& e) {
+		std::cerr << "OCCT异常: " << e.GetMessageString() << std::endl;
+		return 1;
+	}
+	catch (...) {
+		std::cerr << "未知异常发生!" << std::endl;
+		return 1;
 	}
 
 	return 0;

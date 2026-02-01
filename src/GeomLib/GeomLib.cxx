@@ -1296,9 +1296,11 @@ void GeomLib::ExtendCurveToPoint(Handle(Geom_BoundedCurve)& Curve,
   gp_Vec d1, d2, d3;
   gp_Pnt p0;
 // il faut Convertir l'entree (en preservant si possible le parametrage)
+  // 需要转换输入内容（如果可能，保留设置）
   GeomConvert_CompCurveToBSplineCurve Concat(Curve, Convert_QuasiAngular);
 
 // Les contraintes de constructions
+  // 构造约束
   TColgp_Array1OfXYZ Cont(1,size);
   if (After) {
      Ubord = Curve->LastParameter();
@@ -1307,12 +1309,12 @@ void GeomLib::ExtendCurveToPoint(Handle(Geom_BoundedCurve)& Curve,
   else {
      Ubord = Curve->FirstParameter(); 
    }
-  PLib::HermiteCoefficients(0, 1,           // Les Bornes
-			    Continuity, 0,  // Les Ordres de contraintes
+  PLib::HermiteCoefficients(0, 1,           // Les Bornes // 终端
+			    Continuity, 0,  // Les Ordres de contraintes 约束令
 			    MatCoefs);
 
   Curve->D3(Ubord, p0, d1, d2, d3);
-  if (!After) { // Inversion du parametrage
+  if (!After) { // Inversion du parametrage 反转设置
     d1 *= -1;
     d3 *= -1;
   }
@@ -1324,6 +1326,13 @@ void GeomLib::ExtendCurveToPoint(Handle(Geom_BoundedCurve)& Curve,
     // longueur du segment bout de la courbe - point cible.
     // On essai d'avoir sur le prolongement la vitesse moyenne que l'on
     // a sur la courbe.
+      // Lambda 是必须应用于曲线漂移的比率
+
+      // 以获得延伸段的漂移（任意固定为
+
+      // 从曲线末端到目标点的线段长度。
+
+      // 我们力求使延伸段上的平均速度与曲线上的平均速度相同
     gp_Vec daux;
     gp_Pnt pp;
     Standard_Real f= Curve->FirstParameter(), t, dt, norm; 
@@ -1378,7 +1387,7 @@ void GeomLib::ExtendCurveToPoint(Handle(Geom_BoundedCurve)& Curve,
     }
   }
 
-  // Convertion Dans la Base de Bernstein
+  // Convertion Dans la Base de Bernstein//// 伯恩斯坦数据库中的转换
   PLib::CoefficientsPoles(ExtraCoeffs,  PLib::NoWeights(),
 			  ExtrapPoles,  PLib::NoWeights());
   
